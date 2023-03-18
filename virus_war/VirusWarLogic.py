@@ -159,12 +159,36 @@ class Board:
             # remove moves, added on the previous level
             # leave added on the current one
             made_moves = made_moves[moves_num:]
-        return moves
+        # return only the moves of the "last" layer
+        # remove the starting point from them (so only the made moves are returned)
+        return (key[1:] for key in moves.keys() if len(key) == (k + 1))
+
+    def _apply_move(self, moves, pl, board):
+        action_table = {
+            Cell.E: self._add_alive,  # occupy the empty cell
+            Cell.A * -pl: self._mark_eaten  # eat the enemy's cell
+        }
+        self.print(board)
+        print()
+        comps = self._get_connected_components(board)
+        for move in moves:
+            action = action_table.get(board[move], None)
+            if action is not None:
+                board, comps = action(move, pl, board, comps)
+            else:
+                raise RuntimeError(f"Illegal move: trying to place onto {board[move]}, which is prohibited")
+            self.print(board)
+            print()
+        return board
 
     def print(self, board):
         trt = dict(zip(range(-3, 4), "@¥o·x$#"))
         for row in board:
             print(" ".join(trt[e] for e in row))
+
+    def _is_ended(self, k, player, board):
+        self._board = board.copy()
+        return not [*self._get_moves(k, player)]
 
     def _get_all_moves(self, k):
         return {**self._get_moves(k, 1), **self._get_moves(k, -1)}

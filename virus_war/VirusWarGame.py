@@ -3,6 +3,7 @@ from Game import Game
 from VirusWarLogic import Board
 from math import factorial as fac
 
+
 class VirusWarGame(Game):
     """
     This class specifies the base Game class. To define your own game, subclass
@@ -59,7 +60,8 @@ class VirusWarGame(Game):
             nextBoard: board after applying action
             nextPlayer: player who plays in the next turn (should be -player)
         """
-        pass
+        nextBoard = Board.from_numpy(board)._apply_moves(action, player, board)
+        return nextBoard, -player
 
     def getValidMoves(self, board, player):
         """
@@ -72,7 +74,13 @@ class VirusWarGame(Game):
                         moves that are valid from the current board and player,
                         0 for invalid moves
         """
-        pass
+        valid_moves = Board.from_numpy(board)._get_moves(self._k, player)
+        all_moves = np.zeros(int(self.getActionSize()))
+        to_vec_pos = lambda move: sum(
+            e * self._bsize * i for i, e in enumerate(map(lambda m: m[0] * self._n + m[1], move)))
+        *v_moves_pos, = map(to_vec_pos, valid_moves)
+        all_moves[v_moves_pos] = 1
+        return all_moves
 
     def getGameEnded(self, board, player):
         """
@@ -85,7 +93,7 @@ class VirusWarGame(Game):
                small non-zero value for draw.
 
         """
-        pass
+        return Board.from_numpy(board)._is_ended(self._k, player, board)
 
     def getCanonicalForm(self, board, player):
         """
@@ -114,7 +122,20 @@ class VirusWarGame(Game):
                        form of the board and the corresponding pi vector. This
                        is used when training the neural network from examples.
         """
-        pass
+
+        # copied from OthelloGame
+        pi_board = np.reshape(pi[:-1], (self._n, self._n))
+        l = []
+
+        for i in range(1, 5):
+            for j in [True, False]:
+                newB = np.rot90(board, i)
+                newPi = np.rot90(pi_board, i)
+                if j:
+                    newB = np.fliplr(newB)
+                    newPi = np.fliplr(newPi)
+                l += [(newB, list(newPi.ravel()) + [pi[-1]])]
+        return l
 
     def stringRepresentation(self, board):
         """
@@ -126,3 +147,19 @@ class VirusWarGame(Game):
                          Required by MCTS for hashing.
         """
         return board.to_string()
+
+
+if __name__ == "__main__":
+    g = VirusWarGame(5, 3)
+    a = np.array([
+        [1, 0, 0, 0, 0],
+        [0, 1, 2, 0, 0],
+        [0, 0, 0, 0, 0],
+        [-1, 0, -2, -1, 0],
+        [0, 0, 0, 0, -1],
+    ])
+    o = np.ones((5,5))
+    # o[0, :3] = 0
+    v_moves = g.getGameEnded(o, 1)
+    # print(len(v_moves[v_moves==1.0]))
+    print(v_moves)
