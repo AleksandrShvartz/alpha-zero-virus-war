@@ -25,6 +25,7 @@ class VirusWarGame(Game):
         self._n = n
         self._k = k
         self._bsize = n * n
+        Board._Board__n = self._n
 
     def getInitBoard(self):
         """
@@ -32,7 +33,7 @@ class VirusWarGame(Game):
             startBoard: a representation of the board (ideally this is the form
                         that will be the input to your neural network)
         """
-        return Board(self._n)
+        return Board.get_init()
 
     def getBoardSize(self):
         """
@@ -47,7 +48,7 @@ class VirusWarGame(Game):
             actionSize: number of all possible actions
         """
         # + 1 is for "cannot move"
-        return fac(self._bsize) / fac(self._bsize - self._k) + 1
+        return self._bsize ** self._k + 1
 
     def getNextState(self, board, player, action):
         """
@@ -60,8 +61,11 @@ class VirusWarGame(Game):
             nextBoard: board after applying action
             nextPlayer: player who plays in the next turn (should be -player)
         """
-        nextBoard = Board.from_numpy(board)._apply_moves(action, player, board)
-        return nextBoard, -player
+        actions = [0] * self._k
+        for i in range(self._k):
+            action, actions[i] = divmod(action, self._bsize ** i)
+        acts = [divmod(act, self._n) for act in actions]
+        return Board.apply_move(acts, player, board), -player
 
     def getValidMoves(self, board, player):
         """
@@ -74,10 +78,10 @@ class VirusWarGame(Game):
                         moves that are valid from the current board and player,
                         0 for invalid moves
         """
-        valid_moves = Board.from_numpy(board)._get_moves(self._k, player)
+        valid_moves, _ = Board.get_moves(self._k, player, board)
         all_moves = np.zeros(int(self.getActionSize()))
         to_vec_pos = lambda move: sum(
-            e * self._bsize * i for i, e in enumerate(map(lambda m: m[0] * self._n + m[1], move)))
+            e * self._bsize ** i for i, e in enumerate(map(lambda m: m[0] * self._n + m[1], move)))
         *v_moves_pos, = map(to_vec_pos, valid_moves)
         all_moves[v_moves_pos] = 1
         return all_moves
@@ -93,7 +97,7 @@ class VirusWarGame(Game):
                small non-zero value for draw.
 
         """
-        return Board.from_numpy(board)._is_ended(self._k, player, board)
+        return Board.is_ended(self._k, player, board)
 
     def getCanonicalForm(self, board, player):
         """
@@ -109,7 +113,7 @@ class VirusWarGame(Game):
                             board as is. When the player is black, we can invert
                             the colors and return the board.
         """
-        return board * player
+        return np.rot90(board, 2) * player
 
     def getSymmetries(self, board, pi):
         """
@@ -146,7 +150,7 @@ class VirusWarGame(Game):
             boardString: a quick conversion of board to a string format.
                          Required by MCTS for hashing.
         """
-        return board.to_string()
+        return np.array2string(board)
 
 
 if __name__ == "__main__":
