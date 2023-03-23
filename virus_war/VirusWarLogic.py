@@ -79,20 +79,31 @@ class Board:
         return comps
 
     @staticmethod
-    def _add_alive(pos, pl, board, comps):
+    def __generic_marking(pos, board, comps, cell1, cell2, cell3, func):
         board = board.copy()
-        board[pos] = Cell.A * pl
+        board[pos] = cell1
         for nbour in Board.__get_neighbours(pos):
-            # dead, mine, but the newly added cell makes it alive
-            if board[nbour] == Cell.ED * pl:
+            # check whether the type1 connected the dead chain, making it alive
+            # or ate the alive cell from the chain, making it dead
+            if board[nbour] == cell2:
                 # search for its component
-                for comp in comps[Cell.ED * pl]:
-                    if nbour in comp:
-                        # make all the elements in component alive
-                        board[*zip(*tuple(comp))] = Cell.EA * pl
+                for comp in comps[cell2]:
+                    if nbour in comp and func(board, comp):
+                        # make all the elements in component of type3 (alive or dead)
+                        board[*zip(*tuple(comp))] = cell3
         # recalculate
         comps = Board.__get_connected_components(board)
         return board, comps
+
+    @staticmethod
+    def __add_alive(pos, pl, board, comps):
+        return Board.__generic_marking(pos, board, comps, Cell.A * pl, Cell.ED * pl, Cell.EA * pl,
+                                       lambda b, c: True)
+
+    @staticmethod
+    def __mark_eaten(pos, pl, board, comps):
+        return Board.__generic_marking(pos, board, comps, (abs(board[pos]) + 1) * pl, Cell.EA * -pl, Cell.ED * -pl,
+                                       lambda b, c: not Board._is_chain_alive(-pl, b, c))
 
     @staticmethod
     def _is_chain_alive(pl, board, comp):
@@ -104,28 +115,6 @@ class Board:
                 if board[nbour] == Cell.A * pl:
                     return True
         return False
-
-    @staticmethod
-    # TODO
-    #   almost the same code as in _eat_alive -> merge
-    def _mark_eaten(pos, pl, board, comps):
-        board = board.copy()
-        # mark eaten, mine (was -1, ate, became 2)
-        board[pos] = (abs(board[pos]) + 1) * pl
-        for nbour in Board.__get_neighbours(pos):
-            # enemy's alive cell was eaten, check if it was connected
-            # to the eaten chain
-            if board[nbour] == Cell.EA * -pl:
-                # find the right component
-                for comp in comps[Cell.EA * -pl]:
-                    # if the eaten cell was the only one, connected
-                    # to the eaten chain
-                    if nbour in comp and not Board._is_chain_alive(-pl, board, comp):
-                        # mark all the cells as eaten dead
-                        board[*zip(*list(comp))] = Cell.ED * -pl
-        # recalculate
-        comps = Board.__get_connected_components(board)
-        return board, comps
 
     # alternatively, one can "rotate" the board depending on the player
     # then, probably, one will not need to pass "pl" parameter to all subsequent
