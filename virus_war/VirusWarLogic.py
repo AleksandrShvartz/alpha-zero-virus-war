@@ -61,7 +61,7 @@ class Board:
         #   make mapping from each board point to its component (every point of component points to the same instance)
         comps = defaultdict(list)
         # global container to iterate over
-        to_visit = set(zip(*np.where(board == Cell.E)))
+        to_visit = set(zip(*np.where(board != Cell.E)))
 
         while to_visit:
             cpos = to_visit.pop()
