@@ -1,7 +1,9 @@
+from itertools import combinations
+
 import numpy as np
+
 from Game import Game
 from VirusWarLogic import Board
-from math import factorial as fac
 
 
 class VirusWarGame(Game):
@@ -26,6 +28,9 @@ class VirusWarGame(Game):
         self._k = k
         self._bsize = n * n
         Board._Board__n = self._n
+        *self.__combs, = enumerate(combinations(range(self._bsize), self._k))
+        self._combs_to_n = {comb: i for i, comb in self.__combs}
+        self._n_to_combs = dict(self.__combs)
 
     def getInitBoard(self):
         """
@@ -47,8 +52,7 @@ class VirusWarGame(Game):
         Returns:
             actionSize: number of all possible actions
         """
-        # + 1 is for "cannot move"
-        return self._bsize ** self._k + 1
+        return len(self.__combs) + 1
 
     def getNextState(self, board, player, action):
         """
@@ -61,10 +65,7 @@ class VirusWarGame(Game):
             nextBoard: board after applying action
             nextPlayer: player who plays in the next turn (should be -player)
         """
-        actions = [0] * self._k
-        for i in range(self._k):
-            action, actions[i] = divmod(action, self._bsize ** i)
-        acts = [divmod(act, self._n) for act in actions]
+        acts = tuple(divmod(act, self._n) for act in self._n_to_combs[action])
         return Board.apply_move(acts, player, board), -player
 
     def getValidMoves(self, board, player):
@@ -80,10 +81,8 @@ class VirusWarGame(Game):
         """
         valid_moves, _ = Board.get_moves(self._k, player, board)
         all_moves = np.zeros(int(self.getActionSize()))
-        to_vec_pos = lambda move: sum(
-            e * self._bsize ** i for i, e in enumerate(map(lambda m: m[0] * self._n + m[1], move)))
-        *v_moves_pos, = map(to_vec_pos, valid_moves)
-        all_moves[v_moves_pos] = 1
+        all_moves[*(self._combs_to_n[tuple(self._n * a + b for a, b in comb)] for comb in valid_moves)] = 1
+        all_moves[~0] = 1
         return all_moves
 
     def getGameEnded(self, board, player):
@@ -150,7 +149,7 @@ class VirusWarGame(Game):
             boardString: a quick conversion of board to a string format.
                          Required by MCTS for hashing.
         """
-        return np.array2string(board)
+        return Board.to_str(board)
 
 
 if __name__ == "__main__":
@@ -161,9 +160,11 @@ if __name__ == "__main__":
         [0, 0, 0, 0, 0],
         [-1, 0, -2, -1, 0],
         [0, 0, 0, 0, -1],
-    ])
-    o = np.ones((5,5))
-    # o[0, :3] = 0
+    ], dtype=np.int8)
+    o = np.ones((5, 5), dtype=np.int8)
+    o[0, :3] = 0
+    print(g.getValidMoves(o, 1))
+    print(g.getNextState(o, 1, 0))
     v_moves = g.getGameEnded(o, 1)
     # print(len(v_moves[v_moves==1.0]))
     print(v_moves)
