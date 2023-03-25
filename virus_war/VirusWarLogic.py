@@ -1,10 +1,9 @@
 from collections import defaultdict
-from itertools import product, chain
+from dataclasses import dataclass
+from enum import IntEnum
 from pathlib import Path
 
 import numpy as np
-from enum import IntEnum
-from math import factorial
 
 
 class Cell(IntEnum):
@@ -14,22 +13,15 @@ class Cell(IntEnum):
     ED = 3  # eaten, mine, dead; enemy's with minus
 
 
-class Board:
-    __dirs = ((1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1))
+@dataclass
+class Data:
+    explored: set
+    board: np.array
+    comps: dict
 
-    def __init__(self, n):
-        """
+    def __iter__(self): return iter((self.explored, self.board, self.comps))
 
-        :param n: board size
-        """
-        self._n = n
-        self._board = np.zeros((n, n))
 
-    @classmethod
-    def from_numpy(cls, arr):
-        cl = cls(arr.shape[0])
-        cl._board = arr.copy()
-        return cl
 
 class Board:
     __dirs = ((1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1))
@@ -38,6 +30,8 @@ class Board:
     __dummy_pos = (-1, -1)
     __dtype = np.int8
     __file = None
+    __apl_cnt = 0
+    __ign_cnt = 0
 
     @staticmethod
     def get_init():
@@ -125,15 +119,14 @@ class Board:
     # funcsBoard
     @staticmethod
     def get_moves(k, pl, board):
-        # TODO
-        #   remove duplicates:
+        # doesn't allow duplicates:
         #       ((0, 1), (1, 0)) and ((1, 0), (0, 1)) are considered duplicates
         #       duplicates don't make much difference in moves' diversity, but greatly increase the computational cost
         #       one has to store the points of the last level in order to explore
-        #
-        #       create class pt (point) and implement hash
-        #       use Counter(moves) == Counter(moves2) to determine of they are equal
-        #       this can be done without custom class
+        # some duplicates are still possible:
+        #   if x . x, two moves are possible, that will make the board state the same,
+        #   though the moves to achieve it were different
+        #   semi-solution is to hash the board to avoid calculating the same moves on the same board
         board = board.copy()
         if board[Board.__start_pos] == Cell.E:
             # the board is empty, start from the dummy pos
@@ -143,42 +136,52 @@ class Board:
             made_moves = [(pos,) for pos in
                           zip(*np.where(np.logical_or(board == Cell.A * pl, board == Cell.EA * pl)))]
         comps = Board.__get_connected_components(board)
-        # copy as the same board will be related to different moves (their ancestors will modify their board,
-        # which will result in modifications of others, hence copy)
-        moves = {move: (board.copy(), comps.copy()) for move in made_moves}
-        Board._print(board, move="basic")
+        perms = {move: Data(set(), board.copy(), comps.copy()) for move in made_moves}
+
+        # Board._print(board, move="basic")
         n_added_moves = 0
 
-        for _ in range(k):
+        for cnt in range(k):
             # moves is updated. In order to avoid infinite loop
             # freeze its current keys using tuple, iterate over them
-            for made_move in tuple(moves.keys()):
-                # there is only one state from each pos
-                state, comps = moves[made_move]
+            n_added_moves = 0
+            for made_move in tuple(perms.keys()):
+                _, state, comps = perms[made_move]
                 *_, last_move = made_move
                 # check all positions
                 for cpos in Board.__get_neighbours(last_move):
                     move = tuple((*made_move, cpos))
+                    s_move = tuple(sorted(move))
                     if state[cpos] in {Cell.E, Cell.A * -pl}:
-                        # no need to apply moves on the last "level"
-                        # storing only the moves themselves is sufficient
-                        # if _ == k-1:
-                        #   ans.append(move[1:])
-                        # else:
-                        moves[move] = Board.apply_move((cpos,), pl, state, comps=comps)
-                        n_added_moves += 1
-                        Board._print(moves[move][0], move=move)
-            # remove moves, added on the previous level
-            # leave added on the current one
-            *_, = map(moves.pop, tuple(moves.keys())[:len(moves) - n_added_moves])
-            n_added_moves = 0
+                        if s_move not in perms:
+                            # no need to apply moves on the last "level"
+                            # storing only the moves themselves is sufficient
+                            board_, comps_ = Board.apply_move((cpos,), pl, state, comps=comps) if cnt < k - 1 else (
+                                None, None)
+                            perms[s_move] = Data({move}, board_, comps_)
+                            n_added_moves += 1
+                        else:
+                            perms[s_move].explored.add(move)
+                            Board.__ign_cnt += 1
+                        # Board._print(perms[s_move].board, move=move)
+
+            if cnt == k - 1:
+                break
+            # remove all the dummy points (starting points)
+            # also unify some sequences of moves (no different root for the same seq)
+            # a
+            # . c d      will result in 2 seqs: (a c d) and (b c d)
+            # b
+            # removing the not so important starter point will reduce them to (c d)
+            perms = {new_move[cnt == 0:]: Data(set(), board.copy(), comps.copy())
+                     for moves, board, comps in tuple(perms.values())[-n_added_moves:] for new_move in moves}
         # return only the moves of the "last" layer
-        # remove the starting point from them (so only the made moves are returned)
-        return (key[1:] for key in moves.keys()), bool(moves)
-        # return (key[1:] for key in moves.keys() if len(key) == (k + 1))
+        r = tuple(perms)[len(perms) - n_added_moves:]
+        return r, bool(r)
 
     @staticmethod
     def apply_move(moves, pl, board, *, comps=None):
+        Board.__apl_cnt += 1
         action_table = {
             Cell.E: Board.__add_alive,  # occupy the empty cell
             Cell.A * -pl: Board.__mark_eaten  # eat the enemy's cell
@@ -247,7 +250,39 @@ if __name__ == "__main__":
         [1, 0, 0, 0, 0],
         [0, 1, 2, 0, 0],
         [0, 0, 0, 0, 0],
-        [0, 0, -2, -1, 0],
+        [-1, 0, -2, -1, 0],
         [0, 0, 0, 0, -1],
     ])
-    print((Board.from_numpy(c)._get_moves(3, -1)).keys())
+    # print(Board.apply_move(((2, 0), (3, 0), (3, 1)), 1, c))
+    d = np.array([
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+    ])
+    # print((Board.from_numpy(c)._get_moves(3, -1)).keys())
+    moves, _ = Board.get_moves(3, 1, d.astype(np.int8))
+    moves = [*moves]
+    # print(*sorted(moves), sep=" ")
+    from pprint import pprint
+
+    # pprint(sorted(moves))
+    print(f"my moves len: {len(moves)}")
+    s = set([frozenset(el) for el in moves])
+    ls = sorted(tuple(sorted(el)) for el in s)
+    # print(ls)
+    print(f"frozenset len: {len(s)}")
+    print(len(set(moves)), len(set(ls)))
+    from collections import Counter
+    from pprint import pprint
+
+    pprint(Counter(moves))
+    print(f"len of counter {len(Counter(moves))}")
+    print(f"len of mod counter {len(Counter([move[1:] for move in moves]))}")
+    # print(set(moves) - set(ls))
+    # print(len(set(moves)-set(ls)))
+    print(f"appended number {Board._Board__apl_cnt}")
+    print(f"ignored number {Board._Board__ign_cnt}")
+    print(f"cache missed {Board.apply_move.miss}, cache hit {Board.apply_move.hit}, "
+          f"cache cnt {Board.apply_move.miss + Board.apply_move.hit}")
