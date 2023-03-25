@@ -44,6 +44,10 @@ class Board:
         return np.zeros((Board.__n, Board.__n), dtype=Board.__dtype)
 
     @staticmethod
+    def to_str(board):
+        return np.array2string(board)
+
+    @staticmethod
     def __is_in_bounds(pos):
         return all(0 <= e < Board.__n for e in pos)
 

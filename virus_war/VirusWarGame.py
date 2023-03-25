@@ -150,7 +150,7 @@ class VirusWarGame(Game):
             boardString: a quick conversion of board to a string format.
                          Required by MCTS for hashing.
         """
-        return np.array2string(board)
+        return Board.to_str(board)
 
 
 if __name__ == "__main__":
