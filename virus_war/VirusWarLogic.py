@@ -22,6 +22,22 @@ class Data:
     def __iter__(self): return iter((self.explored, self.board, self.comps))
 
 
+def cache(func):
+    _cache = {}
+
+    def wrapper(moves, pl, board, *a, **kw):
+        h = hash(moves) + hash(Board.to_str(board))
+        if h in _cache:
+            wrapper.hit += 1
+        else:
+            wrapper.miss += 1
+            _cache[h] = func(moves, pl, board, *a, **kw)
+        return _cache[h]
+
+    wrapper.miss = 0
+    wrapper.hit = 0
+    return wrapper
+
 
 class Board:
     __dirs = ((1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1))
@@ -180,6 +196,7 @@ class Board:
         return r, bool(r)
 
     @staticmethod
+    @cache
     def apply_move(moves, pl, board, *, comps=None):
         Board.__apl_cnt += 1
         action_table = {
