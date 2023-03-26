@@ -104,7 +104,8 @@ class Board:
                 for comp in comps[cell2]:
                     if nbour in comp and func(board, comp):
                         # make all the elements in component of type3 (alive or dead)
-                        board[*zip(*tuple(comp))] = cell3
+                        *idx, = zip(*tuple(comp))
+                        board[idx] = cell3
         # recalculate
         comps = Board.__get_connected_components(board)
         return board, comps
