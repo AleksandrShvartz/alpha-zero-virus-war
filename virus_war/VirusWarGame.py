@@ -3,7 +3,7 @@ from itertools import combinations
 import numpy as np
 
 from Game import Game
-from VirusWarLogic import Board
+from .VirusWarLogic import Board
 
 
 class VirusWarGame(Game):
@@ -66,7 +66,8 @@ class VirusWarGame(Game):
             nextPlayer: player who plays in the next turn (should be -player)
         """
         acts = tuple(divmod(act, self._n) for act in self._n_to_combs[action])
-        return Board.apply_move(acts, player, board), -player
+        board, _ = Board.apply_move(acts, player, board)
+        return board, -player
 
     def getValidMoves(self, board, player):
         """
@@ -81,8 +82,9 @@ class VirusWarGame(Game):
         """
         valid_moves, _ = Board.get_moves(self._k, player, board)
         all_moves = np.zeros(int(self.getActionSize()))
-        all_moves[*(self._combs_to_n[tuple(self._n * a + b for a, b in comb)] for comb in valid_moves)] = 1
-        all_moves[~0] = 1
+        idx = [self._combs_to_n[tuple(self._n * a + b for a, b in comb)] for comb in valid_moves]
+        all_moves[idx] = 1
+        # all_moves[~0] = 1
         return all_moves
 
     def getGameEnded(self, board, player):
@@ -127,7 +129,7 @@ class VirusWarGame(Game):
         """
 
         # copied from OthelloGame
-        pi_board = np.reshape(pi[:-1], (self._n, self._n))
+        pi_board = np.reshape(pi[:-1], (-1, self._n, self._n))
         l = []
 
         for i in range(1, 5):
