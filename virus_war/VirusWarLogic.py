@@ -104,7 +104,9 @@ class Board:
                 for comp in comps[cell2]:
                     if nbour in comp and func(board, comp):
                         # make all the elements in component of type3 (alive or dead)
-                        board[*zip(*tuple(comp))] = cell3
+                        # board[*zip(*tuple(comp))] = cell3
+                        *idx, = zip(*tuple(comp))
+                        board[tuple(idx)] = cell3
         # recalculate
         comps = Board.__get_connected_components(board)
         return board, comps
@@ -216,19 +218,19 @@ class Board:
             # Board._print(board)
         return board, comps
 
-    @staticmethod
-    def _print(board, *, move: str | tuple = None, newline: bool = True):
-        board = board.astype(dtype=Board.__dtype)
-        trt = "·x$#@¥o"
-        pref, header = ("", "") if move is None else (" " * 4, f"move: {move}\n")
-        suff = "\n" * newline
-
-        out = f"""{header}{chr(10).join(pref + ' '.join(map(trt.__getitem__, row)) for row in board)}{suff}"""
-        if Board.__file is None:
-            print(out)
-        else:
-            with Board.__file.open("a") as f:
-                f.write(out)
+    # @staticmethod
+    # def _print(board, *, move: str | tuple = None, newline: bool = True):
+    #     board = board.astype(dtype=Board.__dtype)
+    #     trt = "·x$#@¥o"
+    #     pref, header = ("", "") if move is None else (" " * 4, f"move: {move}\n")
+    #     suff = "\n" * newline
+    #
+    #     out = f"""{header}{chr(10).join(pref + ' '.join(map(trt.__getitem__, row)) for row in board)}{suff}"""
+    #     if Board.__file is None:
+    #         print(out)
+    #     else:
+    #         with Board.__file.open("a") as f:
+    #             f.write(out)
 
     @staticmethod
     def is_ended(k, player, board):
