@@ -17,7 +17,7 @@ from .VirusWarNNet import VirusWarNNet as vwnnet
 args = dotdict({
     'lr': 0.001,
     'dropout': 0.3,
-    'epochs': 10,
+    'epochs': 12,
     'batch_size': 64,
     'cuda': torch.cuda.is_available(),
     'num_channels': 512,
