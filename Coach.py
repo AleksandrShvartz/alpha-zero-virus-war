@@ -2,7 +2,9 @@ import logging
 import os
 import sys
 from collections import deque
-from pickle import Pickler, Unpickler
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+import hickle
 from random import shuffle
 
 import numpy as np
@@ -14,7 +16,7 @@ from MCTS import MCTS
 log = logging.getLogger(__name__)
 
 
-class Coach():
+class Coach:
     """
     This class executes the self-play + learning. It uses the functions defined
     in Game and NeuralNet. args are specified in main.py.
@@ -28,6 +30,7 @@ class Coach():
         self.mcts = MCTS(self.game, self.nnet, self.args)
         self.trainExamplesHistory = []  # history of examples from args.numItersForTrainExamplesHistory latest iterations
         self.skipFirstSelfPlay = False  # can be overriden in loadTrainExamples()
+        self.tpe = ThreadPoolExecutor(3)
 
     def executeEpisode(self):
         """
@@ -97,7 +100,7 @@ class Coach():
                 self.trainExamplesHistory.pop(0)
             # backup history to a file
             # NB! the examples were collected using the model from the previous iteration, so (i-1)  
-            self.saveTrainExamples(i - 1)
+            asyncio.get_event_loop().run_in_executor(self.tpe, self.saveTrainExamples, i - 1)
 
             # shuffle examples before training
             trainExamples = []
@@ -124,21 +127,25 @@ class Coach():
                 self.nnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
             else:
                 log.info('ACCEPTING NEW MODEL')
-                self.nnet.save_checkpoint(folder=self.args.checkpoint, filename=self.getCheckpointFile(i))
+                self.nnet.save_checkpoint(folder=self.args.checkpoint,
+                                          filename=self.getCheckpointFile(i, ext=".pth.tar"))
                 self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='best.pth.tar')
 
-    def getCheckpointFile(self, iteration):
-        return 'checkpoint_' + str(iteration) + '.pth.tar'
+    def getCheckpointFile(self, iteration, *, ext):
+        return f'checkpoint_{iteration}{ext}'
 
     def saveTrainExamples(self, iteration):
+        log.info("saveTrainExamples in")
+        log.info(f"num of examples: {len(self.trainExamplesHistory)}")
+        from virus_war.VirusWarLogic import Board
+        log.info(f"len of cache: {Board.apply_move.len}")
+
         folder = self.args.checkpoint
         if not os.path.exists(folder):
             os.makedirs(folder)
-        filename = os.path.join(folder, self.getCheckpointFile(iteration) + ".examples")
-        with open(filename, "wb+") as f:
-            Pickler(f).dump(self.trainExamplesHistory)
-            Pickler(f).clear_memo()
-        f.closed
+        filename = os.path.join(folder, self.getCheckpointFile(iteration, ext=".hkl"))
+        hickle.dump(self.trainExamplesHistory[~0], filename, mode="wb", compression="lzf")
+        log.info("saveTrainExamples out")
 
     def loadTrainExamples(self):
         modelFile = os.path.join(self.args.load_folder_file[0], self.args.load_folder_file[1])
@@ -150,8 +157,9 @@ class Coach():
                 sys.exit()
         else:
             log.info("File with trainExamples found. Loading it...")
-            with open(examplesFile, "rb") as f:
-                self.trainExamplesHistory = Unpickler(f).load()
+            self.trainExamplesHistory = hickle.load(examplesFile)
+            # with open(examplesFile, "rb") as f:
+            #     self.trainExamplesHistory = Unpickler(f).load()
             log.info('Loading done!')
 
             # examples based on the model were already collected (loaded)
