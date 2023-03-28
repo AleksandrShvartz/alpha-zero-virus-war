@@ -66,7 +66,7 @@ class VirusWarGame(Game):
             nextPlayer: player who plays in the next turn (should be -player)
         """
         acts = tuple(divmod(act, self._n) for act in self._n_to_combs[action])
-        board, _ = Board.apply_move(acts, player, board)
+        board, _ = Board.apply_move(acts, 1, self.getCanonicalForm(board, player))
         return board, -player
 
     def getValidMoves(self, board, player):
@@ -81,7 +81,7 @@ class VirusWarGame(Game):
                         0 for invalid moves
         """
         valid_moves, _ = Board.get_moves(self._k, player, board)
-        all_moves = np.zeros(int(self.getActionSize()))
+        all_moves = np.zeros(int(self.getActionSize()), dtype=np.float32)
         idx = [self._combs_to_n[tuple(self._n * a + b for a, b in comb)] for comb in valid_moves]
         all_moves[idx] = 1
         # all_moves[~0] = 1
@@ -98,7 +98,16 @@ class VirusWarGame(Game):
                small non-zero value for draw.
 
         """
-        return Board.is_ended(self._k, player, board)
+        # not_lost_i = Board.is_ended(self._k, 1, self.getCanonicalForm(board, player))
+        # not_lost_enemy = Board.is_ended(self._k, 1, self.getCanonicalForm(board, -player))
+        not_lost_i = Board.is_ended(self._k, 1, self.getCanonicalForm(board.copy(), player))
+        not_lost_enemy = Board.is_ended(self._k, 1, self.getCanonicalForm(board.copy(), -player))
+        e = 0 if not_lost_i and not_lost_enemy else (-1 if not_lost_enemy else 1)
+        # e = Board.is_ended(self._k, player, board)
+        # print(Board.is_ended(self._k, player, board))
+        print(e, end=" ")
+        # return Board.is_ended(self._k, player, board)
+        return e
 
     def getCanonicalForm(self, board, player):
         """
@@ -114,7 +123,9 @@ class VirusWarGame(Game):
                             board as is. When the player is black, we can invert
                             the colors and return the board.
         """
-        return np.rot90(board, 2) * player
+        # rotate twice if player == -1
+        # return [board, np.rot90(-board.copy(), 2)][player == -1]
+        return np.rot90(player * board, 1 - player)
 
     def getSymmetries(self, board, pi):
         """
@@ -129,7 +140,7 @@ class VirusWarGame(Game):
         """
 
         # copied from OthelloGame
-        pi_board = np.reshape(pi[:-1], (-1, self._n, self._n))
+        pi_board = np.reshape(pi[:-1], (-1, self._n, self._n)).astype(np.float32)
         l = []
 
         for i in range(1, 5):

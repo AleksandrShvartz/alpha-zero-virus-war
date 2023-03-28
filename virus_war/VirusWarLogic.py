@@ -26,16 +26,18 @@ def cache(func):
     _cache = {}
 
     def wrapper(moves, pl, board, *a, **kw):
-        h = hash(moves) + hash(Board.to_str(board))
+        h = hash(moves) + hash(pl) + hash(Board.to_str(board))
         if h in _cache:
             wrapper.hit += 1
         else:
             wrapper.miss += 1
+            wrapper.len = len(_cache)
             _cache[h] = func(moves, pl, board, *a, **kw)
         return _cache[h]
 
     wrapper.miss = 0
     wrapper.hit = 0
+    wrapper.len = 0
     return wrapper
 
 
@@ -234,7 +236,22 @@ class Board:
 
     @staticmethod
     def is_ended(k, player, board):
-        return not Board.get_moves(k, player, board)[1]
+        # st = (0, 0)
+        # if player == -1:
+        #     n, m = board.shape
+        #     st = (n - 1, m - 1)
+        #     board = -board
+        # if board[st] == Cell.E:
+        #     return False
+        # start_moves = [(pos, ) for pos in zip(*np.where(np.logical_or(board == Cell.A, board == Cell.EA)))]
+        # TODO
+        #   switch to depth-first search
+        a, not_lost = Board.get_moves(k, player, board)
+        return not_lost
+        # # if not not_lost_i:
+        # #     a, not_lost_i = Board.get_moves(k, player, board)
+        # b, not_lost_enemy = Board.get_moves(k, -1, np.rot90(board, 2))
+        # return 0 if not_lost_i and not_lost_enemy else (-1 if not_lost_enemy else 1)
 
     # TODO
     #   smarten things up
